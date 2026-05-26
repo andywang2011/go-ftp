@@ -10,7 +10,31 @@ import (
 type TransferOption func(*transferOpts)
 
 type transferOpts struct {
-	bufferSize int
+	bufferSize           int
+	resumeAuto           bool
+	resumeOffset         int64
+	resumeOffsetExplicit bool
+}
+
+func (o transferOpts) resumeEnabled() bool {
+	return o.resumeAuto || o.resumeOffsetExplicit
+}
+
+// WithResume 路径式传输：根据本地/远程已有字节自动续传（需服务端支持 REST/SIZE）。
+func WithResume(enabled bool) TransferOption {
+	return func(o *transferOpts) {
+		o.resumeAuto = enabled
+	}
+}
+
+// WithResumeOffset 显式起始字节；流式传输须 dst/src 实现 io.Seeker。
+func WithResumeOffset(n int64) TransferOption {
+	return func(o *transferOpts) {
+		if n >= 0 {
+			o.resumeOffset = n
+			o.resumeOffsetExplicit = true
+		}
+	}
 }
 
 // WithBufferSize 设置 io.Copy 缓冲区大小；大文件建议 256KiB～1MiB。

@@ -10,6 +10,34 @@ import (
 // ErrStopIteration 在 ListEach / WalkEach 回调中返回可提前结束遍历（不视为错误）。
 var ErrStopIteration = errors.New("ftp: stop iteration")
 
+// Lister 目录列举能力。
+type Lister interface {
+	List(ctx context.Context, remoteDir string) ([]string, error)
+	ListEach(ctx context.Context, remoteDir string, fn func(Entry) error) error
+	ListIter(ctx context.Context, remoteDir string) (*ListIter, error)
+	WalkEach(ctx context.Context, root string, fn func(Entry) error) error
+}
+
+var _ Lister = (*ftpClient)(nil)
+
+func (c *ftpClient) List(ctx context.Context, remoteDir string) ([]string, error) {
+	if c == nil || c.conn == nil {
+		return nil, fmt.Errorf("ftp: not connected")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	entries, err := c.conn.List(remoteDir)
+	if err != nil {
+		return nil, fmt.Errorf("ftp list: %w", err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name)
+	}
+	return names, nil
+}
+
 // ListEach 逐条处理目录项，不向调用方返回巨型 []string。
 // 注意：标准 FTP LIST 一次拉全目录，库内仍会短暂持有服务端返回列表；超大规模目录请分子目录或 Walk 拆分。
 func (c *ftpClient) ListEach(ctx context.Context, remoteDir string, fn func(Entry) error) error {
@@ -48,16 +76,19 @@ func (c *ftpClient) WalkEach(ctx context.Context, root string, fn func(Entry) er
 	if fn == nil {
 		return fmt.Errorf("ftp: walk callback is nil")
 	}
-	w := c.conn.Walk(root)
-	for w.Next() {
+	walker := c.conn.Walk(root)
+	if walker == nil {
+		return fmt.Errorf("ftp: walk unavailable")
+	}
+	for walker.Next() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := w.Err(); err != nil {
+		if err := walker.Err(); err != nil {
 			return fmt.Errorf("ftp walk: %w", err)
 		}
-		ent := entryFromFTP(w.Stat())
-		ent.Name = w.Path()
+		ent := entryFromFTP(walker.Stat())
+		ent.Name = walker.Path()
 		if err := fn(ent); err != nil {
 			if errors.Is(err, ErrStopIteration) {
 				return nil

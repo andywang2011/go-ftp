@@ -30,6 +30,31 @@ err = cli.DownloadWriter(ctx, "/remote/big.bin", out, ftp.WithBufferSize(1024*10
 
 `Config.TransferBufferSize` 为全局默认（默认 **256KiB**）。
 
+## 大文件断点续传
+
+依赖服务端 **REST**（续传偏移）与 **SIZE**（远程文件大小），常见 vsftpd / ProFTPD 可用。
+
+| 选项 | 作用 |
+|------|------|
+| `WithResume(true)` | 路径式 `Upload` / `Download`：按本地/远程已有字节自动续传 |
+| `WithResumeOffset(n)` | 显式从第 `n` 字节继续；流式须 `io.Seeker` |
+
+```go
+// 下载中断后再次调用，从本地 partial 文件续传
+err := cli.Download(ctx, "/remote/big.bin", "/data/big.bin", ftp.WithResume(true))
+
+// 上传：远程已有部分字节时，从 FileSize(remote) 对齐后续传
+err := cli.Upload(ctx, "/data/big.bin", "/remote/big.bin", ftp.WithResume(true))
+```
+
+错误处理：
+
+- `ErrResumeNotSupported` — 服务端不支持或 REST/SIZE 失败
+- `ErrResumeOffsetMismatch` — 远程已传大于本地，需删除远程后重传
+- `ErrResumeNotSeekable` — 流式续传时 `Reader`/`Writer` 未实现 `io.Seeker`
+
+本地文件大于远程时，下载会**截断本地**后全量重下（远程文件可能被替换）。
+
 ## 目录里文件很多怎么 List？
 
 FTP **没有**标准的服务端分页；一次 `LIST` 通常会返回整个目录。
@@ -61,16 +86,23 @@ err := cli.ListEach(ctx, "/inbox", func(e Entry) error {
 
 ## Client 接口
 
-对外只暴露一个 `Client`；业务与单测 mock 依赖它即可。若某模块只需上传，可在**业务包**里自建窄接口，例如：
+`Client` = `Uploader` + `Downloader` + `Lister` + `Close()`，定义分散在 `upload.go` / `download.go` / `list.go`。业务可依赖完整 `Client`，或只注入窄接口：
 
 ```go
-type FTPUploader interface {
-    UploadReader(ctx context.Context, r io.Reader, remote string, opts ...ftp.TransferOption) error
-}
-func NewJob(cli ftp.Client) *Job { return &Job{cli: cli} } // cli 仍满足窄接口
+func NewUploadJob(u ftp.Uploader) *UploadJob { return &UploadJob{u: u} }
+func NewSyncJob(l ftp.Lister) *SyncJob       { return &SyncJob{l: l} }
 ```
 
 凭证由应用 viper 注入，库内**不**设置 anonymous 默认账号。
+
+## 生产 / 开源说明
+
+- **连接**：`NewClient` 后务必 `defer cli.Close()`；用 `context` 控制传输超时。
+- **传输**：当前为明文 FTP（端口 21）；**未实现 FTPS/TLS**，勿在公网传敏感数据。
+- **续传**：依赖服务端 `REST`/`SIZE`；上传前若 `ErrResumeOffsetMismatch`，需清理远程半文件。
+- **下载失败**：未开 `WithResume` 时，失败可能留下不完整本地文件；大文件建议 `WithResume(true)`。
+- **并发**：单 `Client` 同一时刻仅支持一个数据连接（底层库限制），勿并发传输。
+- **版本**：发版请打 git tag（如 `v0.2.0`），与 `go get ...@v0.2.0` 一致。
 
 ## 可运行示例
 

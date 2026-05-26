@@ -56,6 +56,13 @@ func TestWithBufferSize(t *testing.T) {
 	}
 }
 
+func TestWithResume_opts(t *testing.T) {
+	o := applyTransferOpts([]TransferOption{WithResume(true), WithResumeOffset(99)}, 1024)
+	if !o.resumeEnabled() || !o.resumeAuto || !o.resumeOffsetExplicit || o.resumeOffset != 99 {
+		t.Fatalf("%+v", o)
+	}
+}
+
 func TestListIter_EOF(t *testing.T) {
 	it := &ListIter{ctx: context.Background(), entries: []*Entry{}}
 	_, err := it.Next()

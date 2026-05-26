@@ -89,10 +89,13 @@ func runExamples(ctx context.Context, cli ftp.Client) error {
 		return fmt.Errorf("upload: %w", err)
 	}
 
-	// --- 2. 小文件：路径下载（大文件可加大缓冲区，见 DownloadWriter）---
+	// --- 2. 路径下载；大文件中断后可 WithResume(true) 续传 ---
 	downloaded := localFile + ".downloaded"
 	log.Println("download:", remoteFile, "->", downloaded)
-	if err := cli.Download(ctx, remoteFile, downloaded, ftp.WithBufferSize(512<<10)); err != nil {
+	if err := cli.Download(ctx, remoteFile, downloaded,
+		ftp.WithBufferSize(512<<10),
+		ftp.WithResume(true), // 若 downloaded 已存在 partial，从本地大小续传
+	); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 
