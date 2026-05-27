@@ -3,7 +3,6 @@ package ftp
 import (
 	"bytes"
 	"context"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -63,10 +62,30 @@ func TestWithResume_opts(t *testing.T) {
 	}
 }
 
-func TestListIter_EOF(t *testing.T) {
-	it := &ListIter{ctx: context.Background(), entries: []*Entry{}}
-	_, err := it.Next()
-	if err != io.EOF {
-		t.Fatal(err)
+func TestApplyTransferOpts_nilOption(t *testing.T) {
+	o := applyTransferOpts([]TransferOption{nil, WithBufferSize(0)}, 0)
+	if o.bufferSize != defaultTransferBuffer {
+		t.Fatal(o.bufferSize)
+	}
+}
+
+func TestCopyWithContext_invalidWriteCount(t *testing.T) {
+	_, err := copyWithContext(context.Background(), invalidCountWriter{}, strings.NewReader("x"), make([]byte, 4))
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestCopyWithContext_readError(t *testing.T) {
+	_, err := copyWithContext(context.Background(), &bytesSink{}, errReader{}, make([]byte, 4))
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestCopyWithContext_shortWrite(t *testing.T) {
+	_, err := copyWithContext(context.Background(), shortWriter{}, strings.NewReader("ab"), make([]byte, 8))
+	if err == nil {
+		t.Fatal()
 	}
 }

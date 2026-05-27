@@ -3,6 +3,7 @@ package ftp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,5 +71,70 @@ func TestUploadReader_resumeSeeker(t *testing.T) {
 	}
 	if len(fc.storData) != 30 {
 		t.Fatalf("len=%d", len(fc.storData))
+	}
+}
+
+func TestUpload_errors(t *testing.T) {
+	var nilClient *ftpClient
+	if err := nilClient.Upload(context.Background(), "/l", "/r"); !errors.Is(err, ErrNotConnected) {
+		t.Fatal(err)
+	}
+	c := testClient(newFakeFTPConn(), 1024)
+	if err := c.Upload(context.Background(), "/no-such", "/r"); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestUpload_storError(t *testing.T) {
+	fc := newFakeFTPConn()
+	fc.storErr = errors.New("stor fail")
+	dir := t.TempDir()
+	local := filepath.Join(dir, "in")
+	_ = os.WriteFile(local, []byte("data"), 0o644)
+	c := testClient(fc, 1024)
+	if err := c.Upload(context.Background(), local, "/r"); err == nil {
+		t.Fatal()
+	}
+	fc.storErr = errors.New("stor fail")
+	if err := c.Upload(context.Background(), local, "/r", WithResume(true)); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestUploadReader_seekFail(t *testing.T) {
+	fc := newFakeFTPConn()
+	fc.fileSizes["/r"] = 1
+	c := testClient(fc, 1024)
+	err := c.UploadReader(context.Background(), brokenSeeker{bytes.NewReader(nil)}, "/r", WithResume(true))
+	if err == nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUploadAt_storPlainError(t *testing.T) {
+	fc := newFakeFTPConn()
+	fc.storErr = errors.New("stor")
+	c := testClient(fc, 1024)
+	err := c.uploadAt(context.Background(), bytes.NewReader([]byte("x")), "/r", "", WithBufferSize(1024))
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestUploadAt_nilConn(t *testing.T) {
+	var c *ftpClient
+	if err := c.uploadAt(context.Background(), nil, "/r", "", WithBufferSize(1024)); !errors.Is(err, ErrNotConnected) {
+		t.Fatal(err)
+	}
+}
+
+func TestUploadAt_resumeEnabledZeroOffset(t *testing.T) {
+	fc := newFakeFTPConn()
+	dir := t.TempDir()
+	local := filepath.Join(dir, "in")
+	_ = os.WriteFile(local, []byte("hello"), 0o644)
+	c := testClient(fc, 1024)
+	if err := c.Upload(context.Background(), local, "/r", WithResume(true)); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -11,15 +11,6 @@ import (
 	ftplib "github.com/jlaffaye/ftp"
 )
 
-var (
-	// ErrResumeNotSupported 服务端不支持 REST/SIZE 或续传命令失败。
-	ErrResumeNotSupported = errors.New("ftp: resume not supported")
-	// ErrResumeOffsetMismatch 远程已传字节大于本地，无法安全续传。
-	ErrResumeOffsetMismatch = errors.New("ftp: resume offset mismatch")
-	// ErrResumeNotSeekable 流式续传要求 io.Seeker。
-	ErrResumeNotSeekable = errors.New("ftp: resume requires io.Seeker")
-)
-
 type resumePlan struct {
 	offset        int64
 	remoteSize    int64

@@ -148,6 +148,92 @@ func TestListIter_success(t *testing.T) {
 	}
 }
 
+func TestListIter_EOF(t *testing.T) {
+	it := &ListIter{ctx: context.Background(), entries: []*Entry{}}
+	_, err := it.Next()
+	if err != io.EOF {
+		t.Fatal(err)
+	}
+}
+
+func TestListEach_ctxCancelInLoop(t *testing.T) {
+	fc := newFakeFTPConn()
+	fc.listEntries = []*ftplib.Entry{{Name: "a"}, {Name: "b"}}
+	c := testClient(fc, 1024)
+	ctx, cancel := context.WithCancel(context.Background())
+	var n int
+	err := c.ListEach(ctx, "/", func(Entry) error {
+		n++
+		cancel()
+		return nil
+	})
+	if err == nil {
+		t.Fatal("expected ctx error")
+	}
+}
+
+func TestWalkEach_ctxCancel(t *testing.T) {
+	fc := newFakeFTPConn()
+	fc.walk = &fakeWalker{
+		idx:     -1,
+		paths:   []string{"/a", "/b"},
+		entries: []*ftplib.Entry{{Name: "a"}, {Name: "b"}},
+	}
+	c := testClient(fc, 1024)
+	ctx, cancel := context.WithCancel(context.Background())
+	err := c.WalkEach(ctx, "/", func(Entry) error {
+		cancel()
+		return nil
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestWalkEach_callbackError(t *testing.T) {
+	fc := newFakeFTPConn()
+	fc.walk = &fakeWalker{
+		idx:     -1,
+		paths:   []string{"/a"},
+		entries: []*ftplib.Entry{{Name: "a"}},
+	}
+	c := testClient(fc, 1024)
+	if err := c.WalkEach(context.Background(), "/", func(Entry) error { return errors.New("cb") }); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestListIter_ctxCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c := testClient(newFakeFTPConn(), 1024)
+	if _, err := c.ListIter(ctx, "/"); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestListEach_entryTypes(t *testing.T) {
+	fc := newFakeFTPConn()
+	fc.listEntries = []*ftplib.Entry{{Name: "x", Type: ftplib.EntryTypeLink}}
+	c := testClient(fc, 1024)
+	if err := c.ListEach(context.Background(), "/", func(e Entry) error {
+		if e.Type != EntryTypeLink {
+			t.Fatal(e.Type)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWalkEach_nilWalker(t *testing.T) {
+	fc := newFakeFTPConn()
+	c := testClient(&nilWalkerConn{fake: fc}, 1024)
+	if err := c.WalkEach(context.Background(), "/", func(Entry) error { return nil }); err == nil {
+		t.Fatal()
+	}
+}
+
 func TestListIter_errors(t *testing.T) {
 	var nilIter *ListIter
 	if _, err := nilIter.Next(); err != io.EOF {

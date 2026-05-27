@@ -6,7 +6,7 @@ import (
 	ftplib "github.com/jlaffaye/ftp"
 )
 
-// dirWalker 目录遍历（与 jlaffaye/ftp.Walker 对齐，便于单测 mock）。
+// dirWalker matches jlaffaye/ftp.Walker for test mocks.
 type dirWalker interface {
 	Next() bool
 	Err() error
@@ -14,7 +14,7 @@ type dirWalker interface {
 	Path() string
 }
 
-// ftpConn 传输与列举所需的最小 FTP 连接能力（便于单测 mock）。
+// ftpConn is the minimal connection surface used by ftpClient (mock-friendly).
 type ftpConn interface {
 	RetrFrom(path string, offset uint64) (io.ReadCloser, error)
 	Stor(path string, r io.Reader) error

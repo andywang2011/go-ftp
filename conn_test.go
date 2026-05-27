@@ -2,9 +2,13 @@ package ftp
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/textproto"
+	"path/filepath"
 	"sync"
+	"testing"
+	"time"
 
 	ftplib "github.com/jlaffaye/ftp"
 )
@@ -158,4 +162,74 @@ func testClient(fc ftpConn, buf int) *ftpClient {
 		buf = defaultTransferBuffer
 	}
 	return &ftpClient{conn: fc, transferBuf: buf}
+}
+
+func TestDefaultConnectFTP_dialFail(t *testing.T) {
+	_, err := defaultConnectFTP(Config{
+		Host: "127.0.0.1", Port: 1, User: "u", Password: "p",
+		Timeout: 100 * time.Millisecond,
+	})
+	if err == nil {
+		t.Fatal("expected dial error")
+	}
+}
+
+func TestDefaultConnectFTP_loginFail(t *testing.T) {
+	m, port := startFTPMockLoginFail(t)
+	defer m.Close()
+	_, err := defaultConnectFTP(Config{
+		Host: "127.0.0.1", Port: port, User: "u", Password: "bad",
+		Timeout: 3 * time.Second,
+	})
+	if err == nil {
+		t.Fatal("expected login error")
+	}
+}
+
+func TestJlaffayeConn_Walk(t *testing.T) {
+	m, port := startFTPMock(t)
+	defer m.Close()
+	cli, err := NewClient(Config{
+		Host: "127.0.0.1", Port: port, User: "u", Password: "p",
+		Timeout: 5 * time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	jc, ok := cli.(*ftpClient).conn.(*jlaffayeConn)
+	if !ok {
+		t.Fatal("expected jlaffayeConn")
+	}
+	if jc.Walk("/") == nil {
+		t.Fatal("walk nil")
+	}
+}
+
+func TestJlaffayeConn_RetrFrom_mockServer(t *testing.T) {
+	mock, port := startFTPMock(t)
+	defer mock.Close()
+
+	cfg := Config{
+		Host:     "127.0.0.1",
+		Port:     port,
+		User:     "u",
+		Password: "p",
+		Timeout:  5 * time.Second,
+	}
+	old := connectFTP
+	connectFTP = defaultConnectFTP
+	defer func() { connectFTP = old }()
+
+	cli, err := NewClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+
+	dir := t.TempDir()
+	local := filepath.Join(dir, "out")
+	if err := cli.Download(context.Background(), "/magic-file", local); err != nil {
+		t.Fatal(err)
+	}
 }

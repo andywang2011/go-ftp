@@ -7,13 +7,11 @@ import (
 	"io"
 )
 
-// ErrStopIteration 在 ListEach / WalkEach 回调中返回可提前结束遍历（不视为错误）。
-var ErrStopIteration = errors.New("ftp: stop iteration")
-
-// Lister 目录列举能力。
+// Lister lists and walks remote directories.
 type Lister interface {
 	List(ctx context.Context, remoteDir string) ([]string, error)
 	ListEach(ctx context.Context, remoteDir string, fn func(Entry) error) error
+	// ListIter returns a ListIter (same name as type; v0.2 may rename to OpenDirIter).
 	ListIter(ctx context.Context, remoteDir string) (*ListIter, error)
 	WalkEach(ctx context.Context, root string, fn func(Entry) error) error
 }
@@ -22,7 +20,7 @@ var _ Lister = (*ftpClient)(nil)
 
 func (c *ftpClient) List(ctx context.Context, remoteDir string) ([]string, error) {
 	if c == nil || c.conn == nil {
-		return nil, fmt.Errorf("ftp: not connected")
+		return nil, ErrNotConnected
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -38,11 +36,11 @@ func (c *ftpClient) List(ctx context.Context, remoteDir string) ([]string, error
 	return names, nil
 }
 
-// ListEach 逐条处理目录项，不向调用方返回巨型 []string。
-// 注意：标准 FTP LIST 一次拉全目录，库内仍会短暂持有服务端返回列表；超大规模目录请分子目录或 Walk 拆分。
+// ListEach invokes fn per entry without returning a large []string to the caller.
+// The server still returns the full LIST in one round trip; use WalkEach or split dirs at huge scale.
 func (c *ftpClient) ListEach(ctx context.Context, remoteDir string, fn func(Entry) error) error {
 	if c == nil || c.conn == nil {
-		return fmt.Errorf("ftp: not connected")
+		return ErrNotConnected
 	}
 	if fn == nil {
 		return fmt.Errorf("ftp: list callback is nil")
@@ -68,10 +66,10 @@ func (c *ftpClient) ListEach(ctx context.Context, remoteDir string, fn func(Entr
 	return nil
 }
 
-// WalkEach 递归遍历目录树，按 Walk 顺序逐条回调（适合大量文件分批处理，避免一次性 List 根目录）。
+// WalkEach walks a directory tree in Walk order; Entry.Name is the full path from the walker.
 func (c *ftpClient) WalkEach(ctx context.Context, root string, fn func(Entry) error) error {
 	if c == nil || c.conn == nil {
-		return fmt.Errorf("ftp: not connected")
+		return ErrNotConnected
 	}
 	if fn == nil {
 		return fmt.Errorf("ftp: walk callback is nil")
@@ -99,14 +97,14 @@ func (c *ftpClient) WalkEach(ctx context.Context, root string, fn func(Entry) er
 	return nil
 }
 
-// ListIter 拉取目录后按 Next 逐条读取，调用方不必持有完整切片。
+// ListIter iterates directory entries after one LIST (holds a slice internally; prefer ListEach when possible).
 type ListIter struct {
 	ctx     context.Context
 	entries []*Entry
 	idx     int
 }
 
-// Next 返回下一条；io.EOF 表示结束。
+// Next returns the next entry or io.EOF when finished.
 func (it *ListIter) Next() (Entry, error) {
 	if it == nil {
 		return Entry{}, io.EOF
@@ -122,10 +120,10 @@ func (it *ListIter) Next() (Entry, error) {
 	return e, nil
 }
 
-// ListIter 创建目录迭代器（内部分配条目切片，大目录优先 ListEach / WalkEach）。
+// ListIter fetches remoteDir and returns an iterator over entries.
 func (c *ftpClient) ListIter(ctx context.Context, remoteDir string) (*ListIter, error) {
 	if c == nil || c.conn == nil {
-		return nil, fmt.Errorf("ftp: not connected")
+		return nil, ErrNotConnected
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

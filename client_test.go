@@ -3,6 +3,7 @@ package ftp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 )
@@ -89,6 +90,55 @@ func TestFTPClient_Close_nil(t *testing.T) {
 	var c *ftpClient
 	if err := c.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNewClient_connectHook(t *testing.T) {
+	old := connectFTP
+	defer func() { connectFTP = old }()
+
+	connectFTP = func(Config) (ftpConn, error) {
+		return nil, fmt.Errorf("ftp dial: %w", errors.New("dial fail"))
+	}
+	_, err := NewClient(Config{Host: "h", User: "u", Password: "p"})
+	if err == nil {
+		t.Fatal("expected dial error")
+	}
+
+	connectFTP = func(Config) (ftpConn, error) {
+		return nil, fmt.Errorf("ftp login: %w", errors.New("login fail"))
+	}
+	_, err = NewClient(Config{Host: "h", User: "u", Password: "p"})
+	if err == nil {
+		t.Fatal("expected login error")
+	}
+
+	fc := newFakeFTPConn()
+	connectFTP = func(cfg Config) (ftpConn, error) {
+		return fc, nil
+	}
+	cli, err := NewClient(Config{Host: "h", Port: 21, User: "u", Password: "p", TransferBufferSize: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := cli.(*ftpClient)
+	if c.transferBuf != 4096 {
+		t.Fatal(c.transferBuf)
+	}
+	if err := cli.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if c.conn != nil {
+		t.Fatal("conn should be nil after close")
+	}
+}
+
+func TestClose_quitError(t *testing.T) {
+	fc := newFakeFTPConn()
+	fc.quitErr = errors.New("quit fail")
+	c := testClient(fc, 1024)
+	if err := c.Close(); err == nil {
+		t.Fatal("expected quit error")
 	}
 }
 

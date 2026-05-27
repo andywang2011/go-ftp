@@ -6,14 +6,20 @@ import (
 	"time"
 )
 
-// Config FTP 连接配置（用户名/密码由引入方注入，库内不设 anonymous 默认值）。
+// Config holds FTP connection settings. Credentials must be set by the caller (no anonymous default).
 type Config struct {
-	Host               string
-	Port               int
-	User               string
-	Password           string
-	Timeout            time.Duration
-	TransferBufferSize int // 大文件流式传输缓冲区，默认 256KiB
+	// Host is the server hostname or IP (required).
+	Host string
+	// Port is the control port (default 21). FTPS/TLS is not implemented.
+	Port int
+	// User is the login name (required).
+	User string
+	// Password is the login password (required).
+	Password string
+	// Timeout is used for dial and control connection operations (default 30s).
+	Timeout time.Duration
+	// TransferBufferSize is the default io buffer for uploads/downloads (default 256KiB).
+	TransferBufferSize int
 }
 
 const (
@@ -21,7 +27,16 @@ const (
 	defaultTransferBuffer = 256 << 10
 )
 
-// Validate 校验必填项并填充端口、超时默认值。
+// ConfigDefault returns port, timeout, and buffer defaults only. Host, User, and Password must be set by the caller.
+func ConfigDefault() Config {
+	return Config{
+		Port:               defaultPort,
+		Timeout:            30 * time.Second,
+		TransferBufferSize: defaultTransferBuffer,
+	}
+}
+
+// Validate checks required fields and fills defaults for port, timeout, and buffer size.
 func (c *Config) Validate() error {
 	if c.Host == "" {
 		return errors.New("ftp: host is required")
@@ -51,7 +66,7 @@ func (c Config) transferBufferSize() int {
 	return defaultTransferBuffer
 }
 
-// Addr 返回 host:port（Port 由 Validate 填充默认值）。
+// Addr returns host:port (call Validate first to apply default port).
 func (c Config) Addr() string {
 	return c.Host + ":" + strconv.Itoa(c.Port)
 }

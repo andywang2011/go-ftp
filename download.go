@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-// Downloader 下载能力（路径式 + 流式）。
+// Downloader downloads remote paths to local paths or io.Writer.
 type Downloader interface {
 	Download(ctx context.Context, remotePath, localPath string, opts ...TransferOption) error
 	DownloadWriter(ctx context.Context, remotePath string, w io.Writer, opts ...TransferOption) error
@@ -18,7 +18,7 @@ var _ Downloader = (*ftpClient)(nil)
 
 func (c *ftpClient) Download(ctx context.Context, remotePath, localPath string, opts ...TransferOption) error {
 	if c == nil || c.conn == nil {
-		return fmt.Errorf("ftp: not connected")
+		return ErrNotConnected
 	}
 	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 		return err
@@ -33,14 +33,15 @@ func (c *ftpClient) Download(ctx context.Context, remotePath, localPath string, 
 	}
 
 	var f *os.File
+	var openErr error
 	if to.resumeEnabled() {
 		if plan.truncateLocal {
-			f, err = os.Create(localPath)
+			f, openErr = os.Create(localPath)
 		} else {
-			f, err = os.OpenFile(localPath, os.O_CREATE|os.O_WRONLY, 0o644)
+			f, openErr = os.OpenFile(localPath, os.O_CREATE|os.O_WRONLY, 0o644)
 		}
-		if err != nil {
-			return err
+		if openErr != nil {
+			return openErr
 		}
 		if plan.offset > 0 {
 			if _, err = f.Seek(plan.offset, io.SeekStart); err != nil {
@@ -49,9 +50,9 @@ func (c *ftpClient) Download(ctx context.Context, remotePath, localPath string, 
 			}
 		}
 	} else {
-		f, err = os.Create(localPath)
-		if err != nil {
-			return err
+		f, openErr = os.Create(localPath)
+		if openErr != nil {
+			return openErr
 		}
 	}
 	defer f.Close()
@@ -64,7 +65,7 @@ func (c *ftpClient) Download(ctx context.Context, remotePath, localPath string, 
 
 func (c *ftpClient) DownloadWriter(ctx context.Context, remotePath string, w io.Writer, opts ...TransferOption) error {
 	if c == nil || c.conn == nil {
-		return fmt.Errorf("ftp: not connected")
+		return ErrNotConnected
 	}
 	to := applyTransferOpts(opts, c.transferBuf)
 	plan, err := c.planDownloadResumeStream(ctx, remotePath, to, w)

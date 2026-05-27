@@ -49,3 +49,29 @@ func TestNewClient_missingCredentials(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestConfig_Validate_missingHost(t *testing.T) {
+	cfg := Config{User: "u", Password: "p"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestConfig_transferBufferSize(t *testing.T) {
+	if n := (Config{TransferBufferSize: 8192}).transferBufferSize(); n != 8192 {
+		t.Fatal(n)
+	}
+	if n := (Config{}).transferBufferSize(); n != defaultTransferBuffer {
+		t.Fatal(n)
+	}
+}
+
+func TestConfigDefault(t *testing.T) {
+	c := ConfigDefault()
+	if c.Port != defaultPort || c.Timeout == 0 || c.TransferBufferSize != defaultTransferBuffer {
+		t.Fatalf("%+v", c)
+	}
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected validate error without host")
+	}
+}

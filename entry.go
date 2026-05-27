@@ -2,7 +2,7 @@ package ftp
 
 import ftplib "github.com/jlaffaye/ftp"
 
-// EntryType 远程条目类型。
+// EntryType classifies a remote directory entry.
 type EntryType int
 
 const (
@@ -11,7 +11,7 @@ const (
 	EntryTypeLink
 )
 
-// Entry 目录项元数据（List / Walk 使用）。
+// Entry holds metadata for List, ListEach, WalkEach, and ListIter.
 type Entry struct {
 	Name string
 	Size uint64

@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-// TransferOption 传输行为选项（大文件 / 可取消）。
+// TransferOption configures a single upload or download.
 type TransferOption func(*transferOpts)
 
 type transferOpts struct {
@@ -20,14 +20,14 @@ func (o transferOpts) resumeEnabled() bool {
 	return o.resumeAuto || o.resumeOffsetExplicit
 }
 
-// WithResume 路径式传输：根据本地/远程已有字节自动续传（需服务端支持 REST/SIZE）。
+// WithResume enables automatic offset detection for path-based transfers (requires REST/SIZE).
 func WithResume(enabled bool) TransferOption {
 	return func(o *transferOpts) {
 		o.resumeAuto = enabled
 	}
 }
 
-// WithResumeOffset 显式起始字节；流式传输须 dst/src 实现 io.Seeker。
+// WithResumeOffset sets an explicit start byte; streaming transfers require io.Seeker.
 func WithResumeOffset(n int64) TransferOption {
 	return func(o *transferOpts) {
 		if n >= 0 {
@@ -37,7 +37,7 @@ func WithResumeOffset(n int64) TransferOption {
 	}
 }
 
-// WithBufferSize 设置 io.Copy 缓冲区大小；大文件建议 256KiB～1MiB。
+// WithBufferSize sets the copy buffer for one transfer (overrides Config.TransferBufferSize).
 func WithBufferSize(n int) TransferOption {
 	return func(o *transferOpts) {
 		if n > 0 {
@@ -59,7 +59,7 @@ func applyTransferOpts(opts []TransferOption, defaultBuf int) transferOpts {
 	return o
 }
 
-// contextReader 在每次 Read 时检查 ctx，便于大文件上传中途取消。
+// contextReader checks ctx on each Read so large uploads can be cancelled mid-stream.
 type contextReader struct {
 	ctx context.Context
 	r   io.Reader

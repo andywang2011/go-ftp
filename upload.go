@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-// Uploader 上传能力（路径式 + 流式）。
+// Uploader uploads local paths or io.Reader to remote paths.
 type Uploader interface {
 	Upload(ctx context.Context, localPath, remotePath string, opts ...TransferOption) error
 	UploadReader(ctx context.Context, r io.Reader, remotePath string, opts ...TransferOption) error
@@ -17,7 +17,7 @@ var _ Uploader = (*ftpClient)(nil)
 
 func (c *ftpClient) Upload(ctx context.Context, localPath, remotePath string, opts ...TransferOption) error {
 	if c == nil || c.conn == nil {
-		return fmt.Errorf("ftp: not connected")
+		return ErrNotConnected
 	}
 	f, err := os.Open(localPath)
 	if err != nil {
@@ -33,7 +33,7 @@ func (c *ftpClient) UploadReader(ctx context.Context, r io.Reader, remotePath st
 
 func (c *ftpClient) uploadAt(ctx context.Context, r io.Reader, remotePath, localPath string, opts ...TransferOption) error {
 	if c == nil || c.conn == nil {
-		return fmt.Errorf("ftp: not connected")
+		return ErrNotConnected
 	}
 	to := applyTransferOpts(opts, c.transferBuf)
 	plan, err := c.planUploadResume(ctx, remotePath, localPath, to, r)

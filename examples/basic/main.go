@@ -1,13 +1,13 @@
-// 基本用法示例：连接 FTP，上传/下载、大目录列举。
+// Basic example: connect, upload/download, list and walk.
 //
-// 运行前设置环境变量（勿把密码写进代码）：
+// Set environment variables before run:
 //
 //	export FTP_HOST=127.0.0.1
 //	export FTP_PORT=21
 //	export FTP_USER=your_user
 //	export FTP_PASSWORD=your_pass
 //
-// 在 go-ftp 目录执行：
+// From go-ftp module root:
 //
 //	go run ./examples/basic
 package main
@@ -80,7 +80,6 @@ func runExamples(ctx context.Context, cli ftp.Client) error {
 	const remoteFile = "/hello-from-go-ftp.txt"
 	localFile := filepath.Join(os.TempDir(), "go-ftp-demo-local.txt")
 
-	// --- 1. 小文件：路径上传 ---
 	if err := os.WriteFile(localFile, []byte("hello ftp\n"), 0o644); err != nil {
 		return err
 	}
@@ -89,24 +88,21 @@ func runExamples(ctx context.Context, cli ftp.Client) error {
 		return fmt.Errorf("upload: %w", err)
 	}
 
-	// --- 2. 路径下载；大文件中断后可 WithResume(true) 续传 ---
 	downloaded := localFile + ".downloaded"
 	log.Println("download:", remoteFile, "->", downloaded)
 	if err := cli.Download(ctx, remoteFile, downloaded,
 		ftp.WithBufferSize(512<<10),
-		ftp.WithResume(true), // 若 downloaded 已存在 partial，从本地大小续传
+		ftp.WithResume(true),
 	); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 
-	// --- 3. 流式上传（内存 -> 远程）---
 	remoteFromMem := "/from-memory.txt"
 	log.Println("upload reader ->", remoteFromMem)
 	if err := cli.UploadReader(ctx, strings.NewReader("stream upload\n"), remoteFromMem); err != nil {
 		return fmt.Errorf("upload reader: %w", err)
 	}
 
-	// --- 4. 目录文件少：List ---
 	names, err := cli.List(ctx, remoteDir)
 	if err != nil {
 		return fmt.Errorf("list: %w", err)
@@ -119,7 +115,6 @@ func runExamples(ctx context.Context, cli ftp.Client) error {
 		log.Println("  -", name)
 	}
 
-	// --- 5. 目录文件多：ListEach（边处理边丢，可提前结束）---
 	var fileCount int
 	log.Println("list each:", remoteDir)
 	err = cli.ListEach(ctx, remoteDir, func(e ftp.Entry) error {
@@ -137,7 +132,6 @@ func runExamples(ctx context.Context, cli ftp.Client) error {
 		return fmt.Errorf("list each: %w", err)
 	}
 
-	// --- 6. 子树遍历：WalkEach（路径在 e.Name）---
 	log.Println("walk:", remoteDir)
 	walkCount := 0
 	err = cli.WalkEach(ctx, remoteDir, func(e ftp.Entry) error {
