@@ -13,8 +13,11 @@ const (
 
 // Entry holds metadata for List, ListEach, WalkEach, and ListIter.
 type Entry struct {
+	// Name is the file or directory name (WalkEach uses the full path).
 	Name string
+	// Size is the entry size in bytes when known.
 	Size uint64
+	// Type classifies the entry as file, folder, or link.
 	Type EntryType
 }
 

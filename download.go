@@ -10,7 +10,9 @@ import (
 
 // Downloader downloads remote paths to local paths or io.Writer.
 type Downloader interface {
+	// Download copies remotePath to localPath.
 	Download(ctx context.Context, remotePath, localPath string, opts ...TransferOption) error
+	// DownloadWriter streams remotePath into w.
 	DownloadWriter(ctx context.Context, remotePath string, w io.Writer, opts ...TransferOption) error
 }
 

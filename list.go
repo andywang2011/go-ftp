@@ -9,10 +9,13 @@ import (
 
 // Lister lists and walks remote directories.
 type Lister interface {
+	// List returns entry names in remoteDir.
 	List(ctx context.Context, remoteDir string) ([]string, error)
+	// ListEach invokes fn for each entry without collecting a full slice.
 	ListEach(ctx context.Context, remoteDir string, fn func(Entry) error) error
 	// ListIter returns a ListIter (same name as type; v0.2 may rename to OpenDirIter).
 	ListIter(ctx context.Context, remoteDir string) (*ListIter, error)
+	// WalkEach invokes fn for each entry under root recursively.
 	WalkEach(ctx context.Context, root string, fn func(Entry) error) error
 }
 

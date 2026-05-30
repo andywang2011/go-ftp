@@ -9,7 +9,9 @@ import (
 
 // Uploader uploads local paths or io.Reader to remote paths.
 type Uploader interface {
+	// Upload copies localPath to remotePath.
 	Upload(ctx context.Context, localPath, remotePath string, opts ...TransferOption) error
+	// UploadReader copies r to remotePath.
 	UploadReader(ctx context.Context, r io.Reader, remotePath string, opts ...TransferOption) error
 }
 
