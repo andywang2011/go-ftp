@@ -1,6 +1,6 @@
 module github.com/andywang2011/go-ftp
 
-go 1.25
+go 1.27.3
 
 require github.com/jlaffaye/ftp v0.2.0
 
