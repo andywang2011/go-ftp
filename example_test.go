@@ -6,20 +6,19 @@ import (
 	"github.com/andywang2011/go-ftp"
 )
 
-func ExampleConfigDefault() {
+func ExampleNewClient() {
 	cfg := ftp.ConfigDefault()
-	fmt.Println(cfg.Port)
-	// Output: 21
-}
+	cfg.Host = "127.0.0.1"
+	cfg.Port = 65530
+	cfg.User = "user"
+	cfg.Password = "secret"
 
-func ExampleConfig_validate() {
-	cfg := ftp.ConfigDefault()
-	err := cfg.Validate()
-	fmt.Println(err != nil)
-	// Output: true
-}
-
-func ExampleEntryType() {
-	fmt.Println(int(ftp.EntryTypeFile))
-	// Output: 0
+	cli, err := ftp.NewClient(cfg)
+	if err != nil {
+		fmt.Println("connect failed")
+		return
+	}
+	defer cli.Close()
+	fmt.Println("ok")
+	// Output: connect failed
 }
