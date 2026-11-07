@@ -26,7 +26,11 @@ func startFTPMock(t *testing.T) (*ftpMock, int) {
 		t.Fatal(err)
 	}
 	m := &ftpMock{t: t, listener: ln, port: ln.Addr().(*net.TCPAddr).Port}
-	go m.serve()
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.serve()
+	}()
 	return m, m.port
 }
 
@@ -143,7 +147,11 @@ func startFTPMockLoginFail(t *testing.T) (*ftpMock, int) {
 		t.Fatal(err)
 	}
 	m := &ftpMock{t: t, listener: ln, port: ln.Addr().(*net.TCPAddr).Port}
-	go m.serveLoginFail()
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.serveLoginFail()
+	}()
 	return m, m.port
 }
 
